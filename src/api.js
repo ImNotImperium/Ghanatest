@@ -43,10 +43,16 @@ async function callGemini({ apiKey, model, prompt }) {
 }
 
 // ---------------------------------------------------------------------------
-// Hugging Face — Inference API (text-generation task)
+// Hugging Face — Serverless Inference API (OpenAI-compatible, FREE tier)
+//
+// Uses the HF router chat-completions endpoint introduced in 2024.
+// All models listed in MODEL_PRESETS.hf are small enough to run entirely
+// on HuggingFace's free infrastructure — NO credits required, just a
+// free account token from https://huggingface.co/settings/tokens
 // ---------------------------------------------------------------------------
 async function callHuggingFace({ apiKey, model, prompt }) {
-  const endpoint = `https://api-inference.huggingface.co/models/${model}`;
+  // OpenAI-compatible endpoint served by HF's free serverless router
+  const endpoint = `https://router.huggingface.co/hf-inference/models/${model}/v1/chat/completions`;
 
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -55,31 +61,26 @@ async function callHuggingFace({ apiKey, model, prompt }) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: prompt,
-      parameters: {
-        max_new_tokens: 512,
-        temperature: 0.8,
-        return_full_text: false,
-      },
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 1024,
+      temperature: 0.8,
     }),
   });
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
-    throw new Error(
-      err?.error ?? `Hugging Face API error: ${response.status}`
-    );
+    // Surface the clearest available error message
+    const msg =
+      err?.error?.message ??
+      err?.error ??
+      `Hugging Face API error: ${response.status}`;
+    throw new Error(msg);
   }
 
   const data = await response.json();
-
-  // HF returns an array of generated sequences
-  if (Array.isArray(data) && data[0]?.generated_text !== undefined) {
-    return data[0].generated_text;
-  }
-
-  // Some models wrap the result differently
-  if (data?.generated_text) return data.generated_text;
+  const text = data?.choices?.[0]?.message?.content;
+  if (typeof text === 'string') return text;
 
   throw new Error('Unexpected response shape from Hugging Face API.');
 }
@@ -116,8 +117,12 @@ export const MODEL_PRESETS = {
     { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (latest)' },
   ],
   hf: [
-    { id: 'mistralai/Mistral-7B-Instruct-v0.2',  label: 'Mistral 7B Instruct' },
-    { id: 'HuggingFaceH4/zephyr-7b-beta',         label: 'Zephyr 7B Beta' },
-    { id: 'tiiuae/falcon-7b-instruct',             label: 'Falcon 7B Instruct' },
+    // All models below run on HF free serverless infrastructure —
+    // no credits needed, only a free HF account token.
+    { id: 'HuggingFaceTB/SmolLM2-1.7B-Instruct',   label: 'SmolLM2 1.7B (by HuggingFace — fastest)' },
+    { id: 'Qwen/Qwen2.5-1.5B-Instruct',             label: 'Qwen 2.5 1.5B Instruct' },
+    { id: 'Qwen/Qwen2.5-3B-Instruct',               label: 'Qwen 2.5 3B Instruct (smarter)' },
+    { id: 'microsoft/Phi-3.5-mini-instruct',         label: 'Phi-3.5 Mini (Microsoft, 3.8B)' },
+    { id: 'google/gemma-3-1b-it',                    label: 'Gemma 3 1B (Google, lightweight)' },
   ],
 };
