@@ -1,0 +1,73 @@
+# .github/workflows/deploy.yml
+#
+# Automatically builds and publishes the app to GitHub Pages
+# on every push to the `main` branch.
+#
+# Live URL after setup:
+#   https://<your-github-username>.github.io/<your-repo-name>/
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  # Allow manual trigger from the Actions tab
+  workflow_dispatch:
+
+# Grant the GITHUB_TOKEN permission to deploy Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one deployment at a time; cancel any in-progress run if a
+# newer push arrives.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      # 1 — Check out source
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2 — Set up Node (matches the version you use locally)
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # 3 — Install dependencies
+      - name: Install dependencies
+        run: npm ci
+
+      # 4 — Build with the correct base path
+      #     VITE_BASE_PATH is read by vite.config.js so all asset URLs
+      #     are relative to /<repo-name>/ on GitHub Pages.
+      - name: Build
+        run: npm run build
+        env:
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+
+      # 5 — Upload the dist/ folder as the Pages artifact
+      - name: Configure Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      # 6 — Deploy to GitHub Pages
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

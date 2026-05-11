@@ -1,0 +1,21 @@
+# Build output
+dist/
+dist-ssr/
+
+# Dependencies
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local env files (never commit API keys)
+.env
+.env.local
+.env.*.local
